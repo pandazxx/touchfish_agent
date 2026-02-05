@@ -41,3 +41,5 @@
 - Assistant: moved main loop before session loop, merged session cycle details, and renumbered sections
 - User: merge main loop and session loop sections per inline comment
 - Assistant: combined main and session loop into a single loop section and renumbered cycles
+- User: address duplication between session process and main loop branch/PR steps
+- Assistant: removed duplicated PR creation from session process to keep loop as source of truth

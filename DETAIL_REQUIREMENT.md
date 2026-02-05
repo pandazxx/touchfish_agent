@@ -47,9 +47,8 @@ The system must accept and use these inputs:
 
 ### 6.2 Session Process
 
-1. When a session starts, the agent creates a PR targeting `master` or `main` (based on repository defaults) if it does not already exist.
-2. The user updates requirement Markdown files and commits the changes.
-3. The user creates GitHub issues for bug fixes or adjustments, labels them `Agent to fix`, and includes the session branch name in the issue description.
+1. When a session starts, the user updates requirement Markdown files and commits the changes.
+2. The user creates GitHub issues for bug fixes or adjustments, labels them `Agent to fix`, and includes the session branch name in the issue description.
 
 ### 6.3 Main + Session Loop
 
