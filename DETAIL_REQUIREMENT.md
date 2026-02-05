@@ -52,19 +52,13 @@ The system must accept and use these inputs:
 
 ### 6.3 Main + Session Loop
 
-1. The loop starts with the container.
-2. The agent scans GitHub repo branches and selects any that:
-   - Match `agent/<agent_name>/*`.
-   - Are not merged into `master`/`main`.
-3. If a match is found, the agent checks out the first matching branch and ensures a PR exists for `master`/`main`.
-4. While on the active session branch, repeat:
+1. While on the active session branch, repeat:
    - Look for issues that:
      - Mention the current PR in the title.
      - Have the label `agent_to_fix`.
    - If found, run the Issue Fixing Cycle.
    - If no issues are found, check for changes in requirement files and run the Implementation Cycle.
    - If neither applies, wait and repeat while staying on the same session branch.
-5. If no matching branch is found, wait and repeat.
 
 #### 6.3.1 Issue Fixing Cycle
 

@@ -43,3 +43,5 @@
 - Assistant: combined main and session loop into a single loop section and renumbered cycles
 - User: address duplication between session process and main loop branch/PR steps
 - Assistant: removed duplicated PR creation from session process to keep loop as source of truth
+- User: remove duplicated main loop steps per inline comments
+- Assistant: deleted redundant loop steps now covered by session start
