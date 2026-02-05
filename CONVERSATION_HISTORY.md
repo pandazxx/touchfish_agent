@@ -24,3 +24,12 @@
 - Assistant: added unit test harness, mocks, and test README
 - User: commit with detail comments
 - Assistant: preparing detailed commit
+
+## 2026-02-01
+- User: As a senior product manager, take the README.md and REQUIREMENT.md as highlevel requirement, consolidate and generate the detail requirement. you can write to DETAIL_REQUIREMENT.md
+- Assistant: created DETAIL_REQUIREMENT.md consolidating README.md and REQUIREMENTS.md
+
+- User: enrich the detail requirement, add more detail to guide the development
+- Assistant: expanded DETAIL_REQUIREMENT.md with configuration, GitHub integration, workspace, logging, error handling, security, and acceptance criteria
+- User: specify the prompt format for issue fix and requirement change
+- Assistant: added prompt format requirements for issue fix and requirement change cycles
