@@ -37,3 +37,5 @@
 - Assistant: updated prompt requirements to explicit templates with placeholders for testing
 - User: address inline comments on prompt templates and loop duplication
 - Assistant: added references to prompt templates, commit message templates, and clarified main vs session loops
+- User: reorder main/session loop sections and merge session loop with session cycles
+- Assistant: moved main loop before session loop, merged session cycle details, and renumbered sections

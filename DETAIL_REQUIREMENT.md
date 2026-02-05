@@ -51,50 +51,7 @@ The system must accept and use these inputs:
 2. The user updates requirement Markdown files and commits the changes.
 3. The user creates GitHub issues for bug fixes or adjustments, labels them `Agent to fix`, and includes the session branch name in the issue description.
 
-### 6.3 Session Cycles
-
-The agent repeatedly runs cycles during the session.
-
-#### 6.3.1 Issue Fixing Cycle
-
-1. Agent scans for issues that:
-   - Mention the current PR in the title.
-   - Have the label `agent_to_fix`.
-2. If found, select the first issue and change its label to `agent_fixing`.
-3. Agent uses the code agent (e.g., `codex` CLI) to fix the issue based on description and comments using the prompt in **19.1 Issue Fix Prompt Template**.
-4. Commit changes using the template: `Aaron: issue fix <issue-id> - <short-summary>` and push.
-5. Add a comment to the issue starting with `<agent name>: ` to indicate agent-generated feedback.
-6. Update label to `agent_pending_verify`.
-7. Update the PR.
-
-**Notes:**
-- If verification fails, issues may be reverted to `agent_to_fix` and must be reprocessed with full issue context.
-- Issues can be bugs or agent implementation faults.
-
-#### 6.3.2 Implementation Cycle
-
-1. If no issues are found, the agent watches commits on the current branch.
-2. The agent compares changes to requirement files:
-   - `REQUIREMENTS.md`
-   - `CICD_REQUIREMENTS.md`
-   - Any other files referenced by those requirement files.
-3. The agent interprets diffs as requirement changes and implements them using the prompt in **19.2 Requirement Change Prompt Template**.
-4. Commit changes using the template: `Aaron: implement requirements <short-summary>` and push.
-5. Update the PR.
-
-#### 6.3.3 Ending the Cycle
-
-1. CI/CD is triggered by the agent or GitHub action.
-2. The agent updates the PR.
-3. The system returns to cycle scanning.
-
-### 6.4 Session Exit
-
-1. User approves the PR and deletes the session branch.
-2. Agent monitors PR status and considers the session closed when merged.
-3. Agent compacts session history and returns to branch scanning.
-
-## 7. Main Loop (Container-Level)
+### 6.3 Main Loop (Container-Level)
 
 1. The main loop starts with the container.
 2. The agent scans GitHub repo branches and selects any that:
@@ -104,7 +61,7 @@ The agent repeatedly runs cycles during the session.
 4. The agent enters the session loop for that branch.
 5. If no matching branch is found, wait and repeat.
 
-## 8. Session Loop (Within Active Branch)
+### 6.4 Session Loop (Within Active Branch)
 
 1. Look for issues that:
    - Mention the current PR in the title.
@@ -113,18 +70,57 @@ The agent repeatedly runs cycles during the session.
 3. If no issues are found, check for changes in requirement files and run the Implementation Cycle.
 4. If neither applies, wait and repeat while staying on the same session branch.
 
-### 8.1 Exit Criteria
+#### 6.4.1 Issue Fixing Cycle
+
+1. Agent scans for issues that:
+   - Mention the current PR in the title.
+   - Have the label `agent_to_fix`.
+2. If found, select the first issue and change its label to `agent_fixing`.
+3. Agent uses the code agent (e.g., `codex` CLI) to fix the issue based on description and comments using the prompt in **17.1 Issue Fix Prompt Template**.
+4. Commit changes using the template: `Aaron: issue fix <issue-id> - <short-summary>` and push.
+5. Add a comment to the issue starting with `<agent name>: ` to indicate agent-generated feedback.
+6. Update label to `agent_pending_verify`.
+7. Update the PR.
+
+**Notes:**
+- If verification fails, issues may be reverted to `agent_to_fix` and must be reprocessed with full issue context.
+- Issues can be bugs or agent implementation faults.
+
+#### 6.4.2 Implementation Cycle
+
+1. If no issues are found, the agent watches commits on the current branch.
+2. The agent compares changes to requirement files:
+   - `REQUIREMENTS.md`
+   - `CICD_REQUIREMENTS.md`
+   - Any other files referenced by those requirement files.
+3. The agent interprets diffs as requirement changes and implements them using the prompt in **17.2 Requirement Change Prompt Template**.
+4. Commit changes using the template: `Aaron: implement requirements <short-summary>` and push.
+5. Update the PR.
+
+#### 6.4.3 Ending the Cycle
+
+1. CI/CD is triggered by the agent or GitHub action.
+2. The agent updates the PR.
+3. The system returns to cycle scanning.
+
+### 6.5 Session Exit
+
+1. User approves the PR and deletes the session branch.
+2. Agent monitors PR status and considers the session closed when merged.
+3. Agent compacts session history and returns to branch scanning.
+
+### 6.6 Exit Criteria
 
 - Exit session loop when the PR is merged.
 - Before exit, compact agent session.
 - After exit, continue the next main loop cycle.
 
-## 9. Documentation Requirements
+## 7. Documentation Requirements
 
 - `BUILD.md`: instructions for building images.
 - `USAGE.md`: usage instructions, including how to acquire and set tokens for `codex` and `gh`.
 
-## 10. Unit Test Requirements
+## 8. Unit Test Requirements
 
 - Implement `tests/unit_test.sh` with the following requirements:
   - Mock `gh` to emulate GitHub output.
@@ -147,13 +143,13 @@ The agent repeatedly runs cycles during the session.
 
 - Generate `tests/README.md` explaining how to run tests.
 
-## 11. Commit and PR Expectations
+## 9. Commit and PR Expectations
 
 - Every change made by the agent must be committed with proper descriptions.
 - Session activities should update PR status as required.
 - Git commit messages should reflect the action performed and be recorded for traceability.
 
-## 12. Configuration and Environment Variables
+## 10. Configuration and Environment Variables
 
 The system must support configuration through environment variables or CLI flags, and must document them in `USAGE.md`. Minimum required configuration:
 
@@ -171,7 +167,7 @@ Optional configuration:
 - `MAX_ISSUES_PER_CYCLE`: cap number of issues processed per loop (default: 1).
 - `SESSION_IDLE_TIMEOUT`: exit session loop if idle for too long (disabled by default).
 
-## 13. GitHub Integration Details
+## 11. GitHub Integration Details
 
 The agent must use GitHub CLI (`gh`) for all GitHub operations. The following behaviors are required:
 
@@ -188,7 +184,7 @@ The agent must use GitHub CLI (`gh`) for all GitHub operations. The following be
   - Update labels in order: `agent_to_fix` → `agent_fixing` → `agent_pending_verify`.
   - Add a comment starting with `<AGENT_NAME>:` after fixes are committed.
 
-## 14. Repository and Workspace Layout
+## 12. Repository and Workspace Layout
 
 The container must mount a host workspace with the following structure:
 
@@ -201,7 +197,7 @@ The agent must be able to:
 - Cleanly check out the session branch.
 - Keep temporary state isolated per agent to avoid cross-session contamination.
 
-## 15. Logging, Observability, and Auditability
+## 13. Logging, Observability, and Auditability
 
 The system must emit structured logs that include:
 
@@ -211,7 +207,7 @@ The system must emit structured logs that include:
 
 All logs should be stored in a session-specific log file, and the most recent operations should be printed to stdout for container logs.
 
-## 16. Error Handling and Recovery
+## 14. Error Handling and Recovery
 
 The agent must gracefully handle common failures:
 
@@ -222,14 +218,14 @@ The agent must gracefully handle common failures:
 
 Any failed cycle must log the failure reason and re-enter the main loop after a cooldown.
 
-## 17. Security and Access Control
+## 15. Security and Access Control
 
 - GitHub tokens must never be logged or echoed.
 - Only required scopes should be used (repo, issues, PRs).
 - Sensitive data in config files must be mounted via environment variables rather than committed files.
 - Container images should avoid baking secrets.
 
-## 18. Acceptance Criteria
+## 16. Acceptance Criteria
 
 The following outcomes must be demonstrable:
 
@@ -238,11 +234,11 @@ The following outcomes must be demonstrable:
 - Requirement changes in `REQUIREMENTS.md` trigger the implementation cycle.
 - When a PR is merged, the session exits and the agent sends the `/compact` instruction to the code agent.
 
-## 19. Prompt Template Requirements
+## 17. Prompt Template Requirements
 
 The agent must use consistent, structured prompts when invoking the code agent (`codex` CLI). Prompts must be deterministic, include all required context, and be verifiable in unit tests. Use the templates below verbatim (including headings and labels), replacing placeholders with real values. Test cases must validate exact prompt strings against these templates.
 
-### 19.1 Issue Fix Prompt Template
+### 17.1 Issue Fix Prompt Template
 
 ```
 TASK_TYPE: ISSUE_FIX
@@ -274,7 +270,7 @@ Make minimal changes and preserve style.
 Report what changed and why.
 ```
 
-### 19.2 Requirement Change Prompt Template
+### 17.2 Requirement Change Prompt Template
 
 ```
 TASK_TYPE: REQUIREMENT_CHANGE
