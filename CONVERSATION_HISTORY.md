@@ -31,3 +31,5 @@
 
 - User: enrich the detail requirement, add more detail to guide the development
 - Assistant: expanded DETAIL_REQUIREMENT.md with configuration, GitHub integration, workspace, logging, error handling, security, and acceptance criteria
+- User: specify the prompt format for issue fix and requirement change
+- Assistant: added prompt format requirements for issue fix and requirement change cycles

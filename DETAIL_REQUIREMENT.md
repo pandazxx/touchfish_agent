@@ -236,3 +236,58 @@ The following outcomes must be demonstrable:
 - An issue labeled `agent_to_fix` is processed end-to-end with label updates and a prefixed agent comment.
 - Requirement changes in `REQUIREMENTS.md` trigger the implementation cycle.
 - When a PR is merged, the session exits and the agent sends the `/compact` instruction to the code agent.
+
+## 19. Prompt Format Requirements
+
+The agent must use consistent, structured prompts when invoking the code agent (`codex` CLI). Prompts must be deterministic, include all required context, and be verifiable in unit tests.
+
+### 19.1 Issue Fix Prompt Format
+
+When running an Issue Fixing Cycle, construct the prompt with the following sections in order:
+
+1. **Header** (single line):
+   - `TASK_TYPE: ISSUE_FIX`
+   - `AGENT_NAME: <agent-name>`
+   - `SESSION_BRANCH: <branch-name>`
+   - `PR_URL: <pr-url>`
+2. **Issue Summary**:
+   - Issue title
+   - Issue URL
+   - Current labels
+3. **Issue Description**:
+   - Full issue body (verbatim)
+4. **Issue Comments**:
+   - Chronological list of all comments, each prefixed with:
+     - `COMMENT <index> BY <author>:`
+5. **Repo Context**:
+   - Repository URL
+   - Base branch (`master`/`main`)
+   - Current branch
+6. **Instructions**:
+   - `Fix the issue based on the description and comments.`
+   - `Make minimal changes and preserve style.`
+   - `Report what changed and why.`
+
+### 19.2 Requirement Change Prompt Format
+
+When running an Implementation Cycle, construct the prompt with the following sections in order:
+
+1. **Header** (single line):
+   - `TASK_TYPE: REQUIREMENT_CHANGE`
+   - `AGENT_NAME: <agent-name>`
+   - `SESSION_BRANCH: <branch-name>`
+   - `PR_URL: <pr-url>`
+2. **Requirement Files Snapshot**:
+   - Full content of `REQUIREMENTS.md`
+   - Full content of `CICD_REQUIREMENTS.md` (if present)
+   - Any other referenced requirement files (verbatim)
+3. **Requirement Diff**:
+   - Output of `git diff` for the requirement files since the last session commit
+4. **Repo Context**:
+   - Repository URL
+   - Base branch (`master`/`main`)
+   - Current branch
+5. **Instructions**:
+   - `Implement the requirement changes described in the diff.`
+   - `Ensure changes align with the full requirements snapshot.`
+   - `Summarize updates for commit messaging.`
