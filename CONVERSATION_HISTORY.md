@@ -39,3 +39,5 @@
 - Assistant: added references to prompt templates, commit message templates, and clarified main vs session loops
 - User: reorder main/session loop sections and merge session loop with session cycles
 - Assistant: moved main loop before session loop, merged session cycle details, and renumbered sections
+- User: merge main loop and session loop sections per inline comment
+- Assistant: combined main and session loop into a single loop section and renumbered cycles

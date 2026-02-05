@@ -51,26 +51,23 @@ The system must accept and use these inputs:
 2. The user updates requirement Markdown files and commits the changes.
 3. The user creates GitHub issues for bug fixes or adjustments, labels them `Agent to fix`, and includes the session branch name in the issue description.
 
-### 6.3 Main Loop (Container-Level)
+### 6.3 Main + Session Loop
 
-1. The main loop starts with the container.
+1. The loop starts with the container.
 2. The agent scans GitHub repo branches and selects any that:
    - Match `agent/<agent_name>/*`.
    - Are not merged into `master`/`main`.
 3. If a match is found, the agent checks out the first matching branch and ensures a PR exists for `master`/`main`.
-4. The agent enters the session loop for that branch.
+4. While on the active session branch, repeat:
+   - Look for issues that:
+     - Mention the current PR in the title.
+     - Have the label `agent_to_fix`.
+   - If found, run the Issue Fixing Cycle.
+   - If no issues are found, check for changes in requirement files and run the Implementation Cycle.
+   - If neither applies, wait and repeat while staying on the same session branch.
 5. If no matching branch is found, wait and repeat.
 
-### 6.4 Session Loop (Within Active Branch)
-
-1. Look for issues that:
-   - Mention the current PR in the title.
-   - Have the label `agent_to_fix`.
-2. If found, run the Issue Fixing Cycle.
-3. If no issues are found, check for changes in requirement files and run the Implementation Cycle.
-4. If neither applies, wait and repeat while staying on the same session branch.
-
-#### 6.4.1 Issue Fixing Cycle
+#### 6.3.1 Issue Fixing Cycle
 
 1. Agent scans for issues that:
    - Mention the current PR in the title.
@@ -86,7 +83,7 @@ The system must accept and use these inputs:
 - If verification fails, issues may be reverted to `agent_to_fix` and must be reprocessed with full issue context.
 - Issues can be bugs or agent implementation faults.
 
-#### 6.4.2 Implementation Cycle
+#### 6.3.2 Implementation Cycle
 
 1. If no issues are found, the agent watches commits on the current branch.
 2. The agent compares changes to requirement files:
@@ -97,19 +94,19 @@ The system must accept and use these inputs:
 4. Commit changes using the template: `Aaron: implement requirements <short-summary>` and push.
 5. Update the PR.
 
-#### 6.4.3 Ending the Cycle
+#### 6.3.3 Ending the Cycle
 
 1. CI/CD is triggered by the agent or GitHub action.
 2. The agent updates the PR.
 3. The system returns to cycle scanning.
 
-### 6.5 Session Exit
+### 6.4 Session Exit
 
 1. User approves the PR and deletes the session branch.
 2. Agent monitors PR status and considers the session closed when merged.
 3. Agent compacts session history and returns to branch scanning.
 
-### 6.6 Exit Criteria
+### 6.5 Exit Criteria
 
 - Exit session loop when the PR is merged.
 - Before exit, compact agent session.
