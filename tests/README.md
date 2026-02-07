@@ -14,34 +14,22 @@ To run without Docker:
 ./tests/unit_test.sh --no-container
 ```
 
-This will build a one-time test image, copy the workspace into a container, and run the tests inside it. The report is written to:
+To enable verbose command tracing:
+
+```bash
+./tests/unit_test.sh --verbose
+```
+
+The report is written to:
 
 ```
 ./tests/report.txt
 ```
 
-## Running inside a container manually
-
-If you already have the image built, you can run a container without bind mounts:
-
-```bash
-container_id=$(docker create \
-  -e RUN_IN_CONTAINER=1 \
-  -e TEST_REPORT=/work/tests/report.txt \
-  touchfish_agent_test \
-  /work/tests/unit_test.sh)
-docker cp "$(pwd)" "${container_id}:/work"
-docker start -a "${container_id}"
-docker cp "${container_id}:/work/tests/report.txt" ./tests/report.txt
-docker rm "${container_id}"
-```
-
 ## Notes
 
-- The unit tests mock `gh` and `codex` via `tests/mocks`.
-- The unit tests mock `git` and `gh` to avoid network operations.
-- Codex is treated as a blackbox; tests verify the full prompt input recorded by the codex mock.
-- The requirement change test uses mocked REQUIREMENTS content and a mocked git diff output.
-- The merged PR test verifies the `/compact` prompt is sent to codex.
-- Each test case lives in `tests/cases` and declares input/expected variables.
-- Test data lives in `tests/data`.
+- Tests mock `gh`, `git`, and `codex` via `tests/mocks`.
+- Codex is treated as a black box; tests verify the exact prompt input.
+- Test cases are data-driven and live in `tests/cases`.
+- Test data fixtures live in `tests/data`.
+- Every test case records the `DETAIL_REQUIREMENT.md` section(s) it validates.

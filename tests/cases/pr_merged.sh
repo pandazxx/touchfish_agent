@@ -1,4 +1,5 @@
-TEST_NAME="PR merged"
+TEST_NAME="PR merged triggers compact"
+DETAIL_SECTIONS="6.4,10,16"
 
 run_case() {
   local repo="$TEST_TMP/repo_pr"
@@ -24,6 +25,7 @@ run_case() {
   export GITHUB_TOKEN="dummy"
   export REPO_URL="file://$remote"
   export REPO_DIR="$repo"
+  export STATE_DIR="$TEST_TMP/state"
   export POLL_INTERVAL=1
 
   # shellcheck source=/dev/null

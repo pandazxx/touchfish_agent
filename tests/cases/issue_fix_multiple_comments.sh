@@ -1,9 +1,11 @@
-TEST_NAME="Issue fix with multiple comments"
+TEST_NAME="Issue fix prompt includes multiple comments"
+DETAIL_SECTIONS="6.3.1,11,17.1"
 
-INPUT_ISSUE_NUMBER=42
-INPUT_PR_NUMBER=101
-EXPECTED_PROMPT_TITLE="Fix incorrect prompt handling"
-EXPECTED_PROMPT_COMMENT="First comment with extra context."
+INPUT_ISSUE_NUMBER=101
+INPUT_PR_NUMBER=55
+INPUT_SESSION_BRANCH="agent/unit_agent/feature-123"
+INPUT_BASE_BRANCH="main"
+INPUT_PR_URL="https://example.com/pr/55"
 
 run_case() {
   local repo="$TEST_TMP/repo_issue"
@@ -22,12 +24,14 @@ run_case() {
   export GH_MOCK_ISSUE_JSON="$ROOT_DIR/tests/data/issue_with_comments.json"
   export CODEX_PROMPT_LOG="$codex_log"
   export CODEX_OUTPUT_FILE="$repo/fix.txt"
+  export CODEX_CMD="codex"
 
   export AGENT_LIBRARY_MODE=1
   export AGENT_NAME="unit_agent"
   export GITHUB_TOKEN="dummy"
   export REPO_URL="file://$remote"
-  export CODEX_CMD="codex"
+  export REPO_DIR="$repo"
+  export STATE_DIR="$TEST_TMP/state"
 
   # shellcheck source=/dev/null
   source "$ROOT_DIR/scripts/agent.sh"
@@ -40,15 +44,32 @@ run_case() {
   local expected_prompt
   expected_prompt=$(
     cat <<EOF
-You are an automated coding agent. Fix the issue below in this repository.
+TASK_TYPE: ISSUE_FIX
+AGENT_NAME: unit_agent
+SESSION_BRANCH: $INPUT_SESSION_BRANCH
+PR_URL: $INPUT_PR_URL
 
-Issue: $EXPECTED_PROMPT_TITLE
+## Issue Summary
+TITLE: Fix incorrect prompt handling
+URL: https://example.com/issues/101
+LABELS: agent_to_fix, bug
 
+## Issue Description
 The agent fails to include context in its prompt.
 
-Comments:
-- alice: $EXPECTED_PROMPT_COMMENT
-- bob: Second comment with more details.
+## Issue Comments
+COMMENT 1 BY alice: First comment with extra context.
+COMMENT 2 BY bob: Second comment with more details.
+
+## Repo Context
+REPO_URL: file://$remote
+BASE_BRANCH: $INPUT_BASE_BRANCH
+CURRENT_BRANCH: $INPUT_SESSION_BRANCH
+
+## Instructions
+Fix the issue based on the description and comments.
+Make minimal changes and preserve style.
+Report what changed and why.
 EOF
   )
 
