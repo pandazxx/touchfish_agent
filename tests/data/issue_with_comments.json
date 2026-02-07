@@ -1,6 +1,11 @@
 {
   "title": "Fix incorrect prompt handling",
   "body": "The agent fails to include context in its prompt.",
+  "url": "https://example.com/issues/101",
+  "labels": [
+    {"name": "agent_to_fix"},
+    {"name": "bug"}
+  ],
   "comments": [
     {
       "author": {"login": "alice"},

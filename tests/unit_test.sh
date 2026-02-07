@@ -6,15 +6,21 @@ REPORT_PATH=${TEST_REPORT:-"$ROOT_DIR/tests/report.txt"}
 VERBOSE=${UNIT_TEST_VERBOSE:-0}
 RUN_IN_CONTAINER_FLAG=1
 
-if [[ "${1:-}" == "--verbose" ]]; then
-  VERBOSE=1
-  shift
-fi
-
-if [[ "${1:-}" == "--no-container" ]]; then
-  RUN_IN_CONTAINER_FLAG=0
-  shift
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --verbose)
+      VERBOSE=1
+      shift
+      ;;
+    --no-container)
+      RUN_IN_CONTAINER_FLAG=0
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 run_in_container() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -32,9 +38,10 @@ run_in_container() {
     -e RUN_IN_CONTAINER=1 \
     -e TEST_REPORT="/work/tests/report.txt" \
     -e UNIT_TEST_VERBOSE="$VERBOSE" \
-    -e AGENT_NAME="test_agent" \
+    -e AGENT_NAME="unit_agent" \
     -e GITHUB_TOKEN="test_token" \
     -e REPO_URL="https://example.com/repo.git" \
+    -e WORKSPACE_DIR="/work" \
     touchfish_agent_test \
     /work/tests/unit_test.sh)
 
@@ -61,10 +68,15 @@ TEST_TMP=$(mktemp -d)
 mkdir -p "$(dirname "$REPORT_PATH")"
 : > "$REPORT_PATH"
 exec > >(tee -a "$REPORT_PATH") 2>&1
+
 if [[ "$VERBOSE" == "1" ]]; then
-  export PS4='+ ${BASH_SOURCE##*/}:${LINENO}: '
-  set -x
+  exec 3>&2
+else
+  exec 3>>"$REPORT_PATH"
 fi
+export BASH_XTRACEFD=3
+export PS4='+ ${BASH_SOURCE##*/}:${LINENO}: '
+set -x
 
 cleanup() {
   rm -rf "$TEST_TMP"
@@ -105,18 +117,26 @@ setup_repo() {
   git -C "$repo" remote add origin "$remote"
 }
 
+reset_test_env() {
+  unset GH_CALL_LOG GH_MOCK_ISSUE_JSON GH_MOCK_ISSUE_LIST GH_PR_MERGED GH_MOCK_PR_LIST
+  unset CODEX_PROMPT_LOG CODEX_OUTPUT_FILE CODEX_CMD
+  unset GIT_MOCK_DIFF
+}
+
 run_test_case() {
   local case_file="$1"
 
-  unset GIT_MOCK_DIFF
+  reset_test_env
 
   # shellcheck source=/dev/null
   source "$case_file"
 
-  if [[ -z "${TEST_NAME:-}" || -z "${run_case:-}" ]]; then
+  if [[ -z "${TEST_NAME:-}" || -z "${DETAIL_SECTIONS:-}" || -z "${run_case:-}" ]]; then
     log_report "FAIL: invalid test case $case_file"
     return 1
   fi
+
+  log_report "CASE: $TEST_NAME (DETAIL_REQUIREMENT.md: $DETAIL_SECTIONS)"
 
   if run_case; then
     log_report "PASS: $TEST_NAME"
@@ -125,7 +145,6 @@ run_test_case() {
     return 1
   fi
 }
-
 
 failures=0
 
