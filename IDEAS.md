@@ -26,8 +26,13 @@ Three distinct roles, modeled after a real software team:
 | Role | Count | Responsibility |
 |------|-------|----------------|
 | **PM (Product Manager)** | 1 | Define features and requirements |
-| **SE (Software Engineer)** | n | Implementation |
-| **QA (Test Engineer)** | 1 or n | Test strategy, test cases, CI/CD, raise issues |
+| **SE (Software Engineer)** | n | Implementation (feature code + test code) |
+| **QA (Test Engineer)** | 1 or n | Test strategy, test requirements, CI/CD, review test results, raise issues |
+
+**Key distinction:** QA is a **test strategist**, not a test coder. QA defines *what* to test (scenarios, edge cases, acceptance criteria) via `TEST_REQUIREMENTS.md`. SE implements both the feature code and the test code. This means:
+- Only SE writes code — no merge conflicts between agents
+- QA focuses on the higher-value thinking: what should be tested and why
+- Tests naturally align with implementation since the same agent writes both
 
 ### 3. PM Agent is Out of Scope (Decided)
 
@@ -53,7 +58,33 @@ Agents do **not** resolve conflicts with each other. The user is the final judge
 
 ### 5. SE and QA Work in Parallel (Decided)
 
-When SE is implementing, QA can simultaneously generate test cases based on requirements. This follows a **contract-first / TDD-by-separate-agent** model.
+SE and QA work in parallel with no sequencing gate between them.
+
+- QA reads `REQUIREMENT.md` and outputs `TEST_REQUIREMENTS.md` (test scenarios, edge cases, acceptance criteria)
+- SE starts implementing from `REQUIREMENT.md` immediately — does not wait for QA
+- When `TEST_REQUIREMENTS.md` lands (or is updated), SE picks it up as just another requirement change and implements the test cases
+
+**SE treats all requirement sources equally.** Whether a change comes from PM (`REQUIREMENT.md`) or QA (`TEST_REQUIREMENTS.md`), the SE agent's behavior is the same: detect the diff, implement it, commit.
+
+**SE agent core loop:**
+```
+while session is active:
+    pull latest changes
+    diff = compare current state vs last processed state
+    if diff in REQUIREMENT.md or TEST_REQUIREMENTS.md:
+        implement the changes
+        commit
+    if issues labeled "Agent to fix":
+        fix issue
+        commit
+    sleep(poll_interval)
+```
+
+**Rationale:**
+- No idle time — SE starts immediately, no waiting for QA
+- Architecturally simple — no special sequencing or "wait for QA" state
+- Rework is cheap for AI agents — if QA's test specs require rethinking, it's handled in the normal cycle
+- Matches real-world dynamics where requirements arrive incrementally
 
 ---
 
@@ -65,19 +96,12 @@ What does the handoff document look like?
 - Freeform markdown vs. structured template (Goals, User Stories, Acceptance Criteria)?
 - Incremental updates — does the user rewrite the whole file or append? How does SE know what's new vs. already implemented?
 
-### O2. SE and QA Parallel Workflow Mechanics
+### O2. Validation Phase Details
 
-How do SE and QA avoid stepping on each other when working in parallel?
-- Same branch (merge conflicts) vs. separate branches (alignment issues)?
-- Does SE define a skeleton/interfaces first, then both work in parallel?
-- Should QA write tightly-coupled unit tests or loosely-coupled behavioral/integration tests?
-- How does QA know enough about code structure (file paths, function signatures) to write meaningful tests?
-
-### O3. Sequencing Details
-
-The full cycle needs more definition:
-- When does QA start testing — after SE completes a full implementation, or incrementally per commit?
-- What happens when QA tests fail — does SE stop current work to fix, or queue fixes for next cycle?
+After SE implements and QA reviews test results:
+- How does QA trigger test execution — via CI, or does QA run tests directly?
+- What signals "implementation complete" so QA knows to start reviewing results?
+- How does QA report test failures — issue per failure, or a summary issue?
 
 ### O4. User Bottleneck Mitigation
 
