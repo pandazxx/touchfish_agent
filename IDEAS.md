@@ -192,12 +192,15 @@ SE loop:                            QA loop:
   sleep
 ```
 
-### O4. User Bottleneck Mitigation
+### ~~O4. User Bottleneck Mitigation~~ (Resolved)
 
-What should agents do when the user is not available to triage?
-- SE fallback behavior when no issues are assigned
-- Priority rules: issues vs. new requirements
-- Should there be an auto-escalation or timeout mechanism?
+No special "user away" logic needed. SE follows a fixed priority order:
+
+1. **Issues labeled `Agent to fix`** (highest priority)
+2. **New requirement diffs** (`REQUIREMENT.md` or `TEST_REQUIREMENTS.md`)
+3. **Idle** — poll and wait (lowest)
+
+SE works down the list. The user bottleneck only exists when all requirements are implemented and no issues are assigned — which is the correct stopping point. No auto-escalation or timeout needed.
 
 ### O5. Agent Identity and Branch Convention
 
