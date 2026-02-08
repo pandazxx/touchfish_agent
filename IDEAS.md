@@ -4,6 +4,14 @@
 
 - [ ] Define contract formats for all agent interactions (see section 8 for full list: file contracts, issue templates, label conventions, commit message conventions)
 - [x] Tech stack discussion and decisions (see TECH_RESEARCH.md)
+- [ ] State management and crash recovery — how to track session state, last processed commit, and recover after restart
+- [ ] Configuration — teams, GitHub credentials, AI CLI settings, test runner image
+- [ ] Observability / logging — how user monitors agent activity (logs, dashboard, PR comments)
+- [ ] Session lifecycle details — PR creation, session end, workspace cleanup
+- [ ] AI CLI prompt construction — how to build prompts for SE vs QA, what context gets passed
+- [ ] Security — GitHub tokens, Docker socket exposure, AI API keys
+- [ ] Cost management — AI API rate/cost limits, GitHub API rate limits
+- [ ] Recovery / resilience — Go binary crash mid-session handling
 
 ## Project Vision
 
