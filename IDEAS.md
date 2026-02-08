@@ -1,5 +1,9 @@
 # Ideas & Brainstorm Summary
 
+## TODOs
+
+- [ ] Define contract formats for all agent interactions (see O1 for full list: file contracts, issue templates, label conventions, commit message conventions)
+
 ## Project Vision
 
 An AI-powered virtual software team that uses GitHub as the control plane. Developers interact with AI agents through familiar GitHub primitives (branches, PRs, issues, commits) rather than a custom UI. Targets solo developers and tiny teams (2-3 members) running on home server / SOHO infrastructure.
