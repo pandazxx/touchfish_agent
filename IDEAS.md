@@ -2,7 +2,8 @@
 
 ## TODOs
 
-- [ ] Define contract formats for all agent interactions (see O1 for full list: file contracts, issue templates, label conventions, commit message conventions)
+- [ ] Define contract formats for all agent interactions (see section 8 for full list: file contracts, issue templates, label conventions, commit message conventions)
+- [ ] Tech stack discussion and decisions
 
 ## Project Vision
 
@@ -10,9 +11,9 @@ An AI-powered virtual software team that uses GitHub as the control plane. Devel
 
 ---
 
-## Conclusions
+## Decisions
 
-### 1. Polling over Event-driven (Decided)
+### 1. Polling over Event-driven
 
 The agent uses a **pull-based polling model**, not webhooks.
 
@@ -23,16 +24,16 @@ The agent uses a **pull-based polling model**, not webhooks.
 - Lightweight checks (`git ls-remote`, GitHub API ETags) to minimize overhead
 - Status visibility (heartbeat / last-checked indicator) so user knows the agent is alive
 
-### 2. Agent Role Model (Decided)
+### 2. Agent Role Model
 
-Three distinct roles, modeled after a real software team:
+Four distinct roles, modeled after a real software team:
 
-| Role | Count | Responsibility |
-|------|-------|----------------|
-| **PM (Product Manager)** | 1 | Define features and requirements |
-| **SE (Software Engineer)** | n | Implementation (feature code + test code) |
-| **SRE (Site Reliability)** | 1 | Project setup, CI/CD, dev conventions |
-| **QA (Test Engineer)** | 1 or n | Test strategy, test requirements, review test results, raise issues |
+| Role | Count | Responsibility | In Scope |
+|------|-------|----------------|----------|
+| **PM (Product Manager)** | 1 | Define features and requirements | No |
+| **SRE (Site Reliability)** | 1 | Project setup, CI/CD, dev conventions | No |
+| **SE (Software Engineer)** | 1 per team | Implementation (feature code + test code) | Yes |
+| **QA (Test Engineer)** | 1 per team | Test strategy, test requirements, review test results, raise issues | Yes |
 
 **Key distinction:** QA is a **test strategist**, not a test coder. QA defines *what* to test (scenarios, edge cases, acceptance criteria) via `TEST_REQUIREMENTS.md`. SE implements both the feature code and the test code. This means:
 - Only SE writes code — no merge conflicts between agents
@@ -52,7 +53,7 @@ QA writes TEST_REQUIREMENTS.md
 ```
 QA doesn't need to *write* code, but must be able to *read and critique* it. This is consistent with the strategist role — a test strategist reviews whether their strategy was executed correctly.
 
-### 3. PM and SRE Agents are Out of Scope (Decided)
+### 3. PM and SRE are Out of Scope
 
 Both PM and SRE roles are handled **outside this project** via conversational chat UI (e.g., Claude web, ChatGPT). These roles involve highly interactive, real-time discussions not suited for GitHub's async workflow.
 
@@ -78,7 +79,7 @@ User + SRE  → setup       →  PROJECT_SETUP.md        ──┘
 
 SE references both: *what* from PM, *how* from SRE. QA also references `PROJECT_SETUP.md` to understand quality gates when writing test requirements.
 
-### 4. User as Arbiter (Decided)
+### 4. User as Arbiter
 
 Agents do **not** resolve conflicts with each other. The user is the final judge. Agents are workers; the user is the manager.
 
@@ -87,9 +88,7 @@ Agents do **not** resolve conflicts with each other. The user is the final judge
 - All conflict resolution flows through the user via GitHub (issue comments, labels, close/reopen)
 - No inter-agent communication protocol needed — agents interact with GitHub, user is the router
 
-**Trade-off acknowledged:** The user becomes a bottleneck. If QA files issues and the user is unavailable, SE may have nothing to do. A fallback rule may be needed (e.g., SE continues with next requirements when no issues are pending).
-
-### 5. SE and QA Work in Parallel (Decided)
+### 5. SE and QA Work in Parallel
 
 SE and QA work in parallel with no sequencing gate between them.
 
@@ -99,31 +98,86 @@ SE and QA work in parallel with no sequencing gate between them.
 
 **SE treats all requirement sources equally.** Whether a change comes from PM (`REQUIREMENT.md`) or QA (`TEST_REQUIREMENTS.md`), the SE agent's behavior is the same: detect the diff, implement it, commit.
 
-**SE agent core loop:**
-```
-while session is active:
-    pull latest changes
-    diff = compare current state vs last processed state
-    if diff in REQUIREMENT.md or TEST_REQUIREMENTS.md:
-        implement the changes
-        commit
-    if issues labeled "Agent to fix":
-        fix issue
-        commit
-    sleep(poll_interval)
-```
-
 **Rationale:**
 - No idle time — SE starts immediately, no waiting for QA
 - Architecturally simple — no special sequencing or "wait for QA" state
 - Rework is cheap for AI agents — if QA's test specs require rethinking, it's handled in the normal cycle
 - Matches real-world dynamics where requirements arrive incrementally
 
+### 6. Validation
+
+Validation has two tracks:
+
+**Track 1: Test execution (SE responsibility, CI as safety net)**
+- SE runs tests locally before committing. Fix until pass, then commit clean code.
+- CI runs on every commit as a double-check (environment differences, integration issues).
+- **Escape hatch:** If SE fails to pass tests after N retries, SE commits what it has and files an issue describing the failure. User triages. This prevents silent infinite loops where SE is stuck and user has no visibility.
+
+**Alternative approaches considered (may revisit):**
+- *(Option C)* Always commit regardless, let CI catch failures, failures become issues. Simpler but noisy git history.
+- *(Option D)* SE commits failing code to a sub-branch (e.g., `agent/se-1/feature-x/wip`). User inspects without polluting main feature branch. Cleaner but adds branching complexity.
+
+**Track 2: Test code verification (QA responsibility)**
+- QA watches for **any** SE commit — not just test code changes.
+- On every change, QA reviews test code alignment against `TEST_REQUIREMENTS.md`:
+  - Do existing tests still match QA's intent?
+  - Are there new feature changes lacking corresponding tests?
+- QA files issues for misalignment.
+
+### 7. SE Priority Rules
+
+SE follows a fixed priority order — no special "user away" logic needed:
+
+1. **Issues labeled `Agent to fix`** (highest priority)
+2. **New requirement diffs** (`REQUIREMENT.md` or `TEST_REQUIREMENTS.md`)
+3. **Idle** — poll and wait (lowest)
+
+SE only truly idles when all requirements are implemented and no issues are assigned — which is the correct stopping point.
+
+### 8. Team-based Agent Organization
+
+Agents are organized into **teams**, not individual identities. Each team has exactly 1 SE + 1 QA. The team is the unit of work.
+
+**Branch convention:** `agent/<team_name>/<feature>`
+- Example: `agent/alpha/feature-auth`
+- Both SE and QA in team "alpha" watch for `agent/alpha/*` branches
+- No role encoded in the branch name — the branch represents the session/feature, not the agent
+
+**One branch at a time per team.** A team works on a single active branch. When the branch merges, the team scans for the next one.
+
+**User creates the branch** with `REQUIREMENT.md` committed. Agents detect it and start working.
+
+**Scaling:** Add more teams for parallel features. Each team is fully independent.
+```
+Team alpha → agent/alpha/feature-auth    → SE-alpha + QA-alpha
+Team beta  → agent/beta/feature-payments → SE-beta  + QA-beta
+```
+No cross-team coordination. User is the only one who sees across teams.
+
+### 9. CI/CD Ownership
+
+CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
+
 ---
 
-## Open Points for Next Session
+## Agent Loops
 
-### O1. Contract Formats (Detail Design)
+```
+SE loop:                            QA loop:
+  pull changes                        pull changes
+  diff requirements?                  diff from SE commits?
+    → implement code + tests            → review test code alignment
+    → run tests locally                 → review CI results
+    → fix until pass (max N retries)    → file issues if needed
+    → commit (or file issue if stuck)   sleep
+  issues labeled "Agent to fix"?
+    → fix, run tests, commit
+  sleep
+```
+
+---
+
+## Contract Catalog (Detail Design TODO)
 
 All agent interaction flows through contracts — markdown files and GitHub issues. The format and structure of each contract needs to be defined in detail design.
 
@@ -155,73 +209,3 @@ All agent interaction flows through contracts — markdown files and GitHub issu
 - Should commits reference issue numbers?
 - Should commits indicate which requirement item they address?
 - Format for SE commits vs. QA commits?
-
-All of the above to be defined during detail design phase.
-
-### ~~O2. Validation Phase Details~~ (Resolved)
-
-Validation has two tracks:
-
-**Track 1: Test execution (SE responsibility, CI as safety net)**
-- SE runs tests locally before committing. Fix until pass, then commit clean code.
-- CI runs on every commit as a double-check (environment differences, integration issues).
-- **Escape hatch:** If SE fails to pass tests after N retries, SE commits what it has and files an issue describing the failure. User triages. This prevents silent infinite loops where SE is stuck and user has no visibility.
-
-**Alternative approaches considered (may revisit):**
-- *(Option C)* Always commit regardless, let CI catch failures, failures become issues. Simpler but noisy git history.
-- *(Option D)* SE commits failing code to a sub-branch (e.g., `agent/se-1/feature-x/wip`). User inspects without polluting main feature branch. Cleaner but adds branching complexity.
-
-**Track 2: Test code verification (QA responsibility)**
-- QA watches for **any** SE commit — not just test code changes.
-- On every change, QA reviews test code alignment against `TEST_REQUIREMENTS.md`:
-  - Do existing tests still match QA's intent?
-  - Are there new feature changes lacking corresponding tests?
-- QA files issues for misalignment.
-
-**Updated agent loops:**
-```
-SE loop:                            QA loop:
-  pull changes                        pull changes
-  diff requirements?                  diff from SE commits?
-    → implement code + tests            → review test code alignment
-    → run tests locally                 → review CI results
-    → fix until pass (max N retries)    → file issues if needed
-    → commit (or file issue if stuck)   sleep
-  issues labeled "Agent to fix"?
-    → fix, run tests, commit
-  sleep
-```
-
-### ~~O4. User Bottleneck Mitigation~~ (Resolved)
-
-No special "user away" logic needed. SE follows a fixed priority order:
-
-1. **Issues labeled `Agent to fix`** (highest priority)
-2. **New requirement diffs** (`REQUIREMENT.md` or `TEST_REQUIREMENTS.md`)
-3. **Idle** — poll and wait (lowest)
-
-SE works down the list. The user bottleneck only exists when all requirements are implemented and no issues are assigned — which is the correct stopping point. No auto-escalation or timeout needed.
-
-### ~~O5. Agent Identity and Branch Convention~~ (Resolved)
-
-**Team concept:** Agents are organized into teams, not individual identities. Each team has exactly 1 SE + 1 QA. The team is the unit of work.
-
-**Branch convention:** `agent/<team_name>/<feature>`
-- Example: `agent/alpha/feature-auth`
-- Both SE and QA in team "alpha" watch for `agent/alpha/*` branches
-- No role encoded in the branch name — the branch represents the session/feature, not the agent
-
-**One branch at a time per team.** A team works on a single active branch. When the branch merges, the team scans for the next one.
-
-**User creates the branch** with `REQUIREMENT.md` committed. Agents detect it and start working.
-
-**Scaling:** Add more teams for parallel features. Each team is fully independent.
-```
-Team alpha → agent/alpha/feature-auth    → SE-alpha + QA-alpha
-Team beta  → agent/beta/feature-payments → SE-beta  + QA-beta
-```
-No cross-team coordination. User is the only one who sees across teams.
-
-### ~~O6. CI/CD Ownership~~ (Resolved)
-
-CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
