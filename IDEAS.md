@@ -158,12 +158,39 @@ All agent interaction flows through contracts — markdown files and GitHub issu
 
 All of the above to be defined during detail design phase.
 
-### O2. Validation Phase Details
+### ~~O2. Validation Phase Details~~ (Resolved)
 
-After SE implements and QA reviews test results:
-- How does QA trigger test execution — via CI, or does QA run tests directly?
-- What signals "implementation complete" so QA knows to start reviewing results?
-- How does QA report test failures — issue per failure, or a summary issue?
+Validation has two tracks:
+
+**Track 1: Test execution (SE responsibility, CI as safety net)**
+- SE runs tests locally before committing. Fix until pass, then commit clean code.
+- CI runs on every commit as a double-check (environment differences, integration issues).
+- **Escape hatch:** If SE fails to pass tests after N retries, SE commits what it has and files an issue describing the failure. User triages. This prevents silent infinite loops where SE is stuck and user has no visibility.
+
+**Alternative approaches considered (may revisit):**
+- *(Option C)* Always commit regardless, let CI catch failures, failures become issues. Simpler but noisy git history.
+- *(Option D)* SE commits failing code to a sub-branch (e.g., `agent/se-1/feature-x/wip`). User inspects without polluting main feature branch. Cleaner but adds branching complexity.
+
+**Track 2: Test code verification (QA responsibility)**
+- QA watches for **any** SE commit — not just test code changes.
+- On every change, QA reviews test code alignment against `TEST_REQUIREMENTS.md`:
+  - Do existing tests still match QA's intent?
+  - Are there new feature changes lacking corresponding tests?
+- QA files issues for misalignment.
+
+**Updated agent loops:**
+```
+SE loop:                            QA loop:
+  pull changes                        pull changes
+  diff requirements?                  diff from SE commits?
+    → implement code + tests            → review test code alignment
+    → run tests locally                 → review CI results
+    → fix until pass (max N retries)    → file issues if needed
+    → commit (or file issue if stuck)   sleep
+  issues labeled "Agent to fix"?
+    → fix, run tests, commit
+  sleep
+```
 
 ### O4. User Bottleneck Mitigation
 
