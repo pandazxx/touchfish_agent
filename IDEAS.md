@@ -119,11 +119,40 @@ while session is active:
 
 ## Open Points for Next Session
 
-### O1. REQUIREMENT.md Format
+### O1. Contract Formats (Detail Design)
 
-What does the handoff document look like?
-- Freeform markdown vs. structured template (Goals, User Stories, Acceptance Criteria)?
-- Incremental updates — does the user rewrite the whole file or append? How does SE know what's new vs. already implemented?
+All agent interaction flows through contracts — markdown files and GitHub issues. The format and structure of each contract needs to be defined in detail design.
+
+**File-based contracts:**
+
+| Contract | Producer | Consumer(s) | Questions to resolve |
+|----------|----------|-------------|---------------------|
+| `REQUIREMENT.md` | PM (out of scope) | SE, QA | Freeform vs. structured template? Incremental updates — how does SE know what's new vs. already implemented? |
+| `TEST_REQUIREMENTS.md` | QA | SE | How granular — one scenario per line, or grouped by feature? How to link test requirements back to REQUIREMENT.md items? |
+| `PROJECT_SETUP.md` | SRE (out of scope) | SE, QA | What sections are mandatory? How prescriptive vs. flexible? |
+
+**Issue-based contracts:**
+
+| Contract | Producer | Consumer(s) | Questions to resolve |
+|----------|----------|-------------|---------------------|
+| Bug / defect issue | QA or User | SE | Issue template: what fields are required (repro steps, expected vs. actual, severity)? |
+| Test mismatch issue | QA | SE | How to reference the specific test requirement that was misimplemented? |
+| Implementation issue | SE | User | When SE is blocked or needs clarification, what's the format? |
+
+**Label conventions:**
+
+| Label | Meaning | Set by | Questions to resolve |
+|-------|---------|--------|---------------------|
+| `Agent to fix` | Issue ready for SE to pick up | User or QA | Priority levels needed? |
+| `Agent fixing` | SE is working on it | SE | Timeout if SE stalls? |
+| `Agent fixed to be verified` | SE done, awaiting verification | SE | Who verifies — QA, user, or both? |
+
+**Commit message conventions:**
+- Should commits reference issue numbers?
+- Should commits indicate which requirement item they address?
+- Format for SE commits vs. QA commits?
+
+All of the above to be defined during detail design phase.
 
 ### O2. Validation Phase Details
 
