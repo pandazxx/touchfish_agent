@@ -202,12 +202,25 @@ No special "user away" logic needed. SE follows a fixed priority order:
 
 SE works down the list. The user bottleneck only exists when all requirements are implemented and no issues are assigned — which is the correct stopping point. No auto-escalation or timeout needed.
 
-### O5. Agent Identity and Branch Convention
+### ~~O5. Agent Identity and Branch Convention~~ (Resolved)
 
-The naming convention `agent/<agent_name>/*` needs refinement for multi-role agents:
-- Does the branch name encode the role (e.g., `agent/se-1/feature-auth`, `agent/qa/feature-auth`)?
-- How are multiple SE agents assigned to different tasks?
-- Who creates the branches — user or PM output?
+**Team concept:** Agents are organized into teams, not individual identities. Each team has exactly 1 SE + 1 QA. The team is the unit of work.
+
+**Branch convention:** `agent/<team_name>/<feature>`
+- Example: `agent/alpha/feature-auth`
+- Both SE and QA in team "alpha" watch for `agent/alpha/*` branches
+- No role encoded in the branch name — the branch represents the session/feature, not the agent
+
+**One branch at a time per team.** A team works on a single active branch. When the branch merges, the team scans for the next one.
+
+**User creates the branch** with `REQUIREMENT.md` committed. Agents detect it and start working.
+
+**Scaling:** Add more teams for parallel features. Each team is fully independent.
+```
+Team alpha → agent/alpha/feature-auth    → SE-alpha + QA-alpha
+Team beta  → agent/beta/feature-payments → SE-beta  + QA-beta
+```
+No cross-team coordination. User is the only one who sees across teams.
 
 ### ~~O6. CI/CD Ownership~~ (Resolved)
 
