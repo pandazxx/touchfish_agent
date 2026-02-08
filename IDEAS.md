@@ -165,13 +165,16 @@ CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootst
 ```
 SE loop:                            QA loop:
   pull changes                        pull changes
-  diff requirements?                  diff from SE commits?
-    → implement code + tests            → review test code alignment
+  issues labeled "Agent to fix"?      diff from SE commits?
+    → fix issue                         → review test code alignment
     → run tests locally                 → review CI results
     → fix until pass (max N retries)    → file issues if needed
     → commit (or file issue if stuck)   sleep
-  issues labeled "Agent to fix"?
-    → fix, run tests, commit
+  diff requirements?
+    → implement code + tests
+    → run tests locally
+    → fix until pass (max N retries)
+    → commit (or file issue if stuck)
   sleep
 ```
 
