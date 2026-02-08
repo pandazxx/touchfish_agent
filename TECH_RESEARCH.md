@@ -133,3 +133,96 @@ git2go is unmaintained — avoid. GitPython shells out to git CLI, defeating the
 - Invoke Claude Code / Codex via CLI subprocess
 - Orchestrator constructs the prompt, CLI does the work
 - Don't test AI output — test invocation args and post-invocation handling
+
+---
+
+## Container Architecture
+
+### Decision: Single Go Binary + Ephemeral Test Containers
+
+**Single Go binary** runs orchestrator, SE, and QA as goroutines. No inter-container communication. Test execution uses ephemeral containers via Docker CP.
+
+### Components
+
+| Component | Runs as | Needs |
+|-----------|---------|-------|
+| Orchestrator | Goroutine | GitHub REST API |
+| SE agent | Goroutine | go-git, GitHub REST API, AI CLI, Docker API |
+| QA agent | Goroutine | go-git, GitHub REST API, AI CLI |
+| Test runner | Ephemeral container | Target project toolchain |
+
+### Workspace Layout
+
+SE and QA have **separate directories** on the same volume to avoid git lock conflicts. Sync through GitHub (push/pull).
+
+```
+/data/workspaces/
+  └── <team>/
+      ├── se/    ← SE's git clone
+      └── qa/    ← QA's git clone
+```
+
+### Test Execution: Docker CP
+
+SE copies code into a fresh ephemeral container for each test run. Clean room per run, SE workspace untouched.
+
+```
+SE goroutine
+  → docker create <test-runner-image>
+  → docker cp /workspaces/<team>/se/. container:/code
+  → docker start container (runs standalone test command)
+  → wait for exit code + capture stdout/stderr
+  → docker rm container
+  → pass: commit and push
+  → fail: retry (max N) or file issue
+```
+
+**Why Docker CP over volume mount:**
+- Clean room — no leftover artifacts from previous runs
+- SE workspace stays pristine, no cleanup needed
+- Complete isolation — test runner can't corrupt SE's workspace
+- Copy overhead is negligible compared to install deps + compile + test
+- Matches how CI/CD works — clean checkout, install, test
+
+**Requirements:**
+- Go binary's container needs Docker socket mounted (`/var/run/docker.sock`)
+- Test runner image pre-built per project (by SRE during bootstrap)
+- Standalone build/test command defined in `PROJECT_SETUP.md`
+
+### Architecture Diagram
+
+```
+┌──────────────────────────────────────┐
+│  Go Binary Container                  │
+│  + AI CLI installed                   │
+│  + Docker socket mounted              │
+│                                       │
+│  Orchestrator goroutine               │
+│    ├── SE goroutine                   │
+│    │     ├── /workspaces/alpha/se/    │
+│    │     ├── AI CLI (os/exec)         │
+│    │     └── docker cp + run ─────────────→ ┌─────────────────┐
+│    └── QA goroutine                   │      │ Test Runner      │
+│          └── /workspaces/alpha/qa/    │      │ (ephemeral)      │
+│          └── AI CLI (os/exec)         │      │ project toolchain│
+│                                       │      └─────────────────┘
+└──────────────────────────────────────┘
+```
+
+### Go Binary is Project-Agnostic
+
+The Go binary + AI CLI container has no knowledge of the target project's language or toolchain. Project-specific tools live only in the test runner image. SRE provides:
+- Test runner image name (or Dockerfile)
+- Standalone build command
+- Standalone test command
+
+### Container Options Considered
+
+| Option | Description | Why not chosen |
+|--------|-------------|----------------|
+| One container per agent | SE and QA in separate containers | Unnecessary — single binary with goroutines is simpler |
+| One container per team | SE + QA share container | Same as our approach but less explicit |
+| Monolith | Everything in one container, no test isolation | No clean room for tests |
+| Orchestrator spawns agent containers | Dynamic container creation per session | Over-engineered for our needs |
+| Volume mount for tests | Share SE workspace with test runner | Risk of workspace corruption, needs host path config |
+| Named volume for tests | Docker-managed shared volume | Same corruption risk as volume mount |

@@ -158,6 +158,17 @@ No cross-team coordination. User is the only one who sees across teams.
 
 CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
 
+### 10. Container Architecture
+
+Single Go binary runs orchestrator, SE, and QA as goroutines. Test execution uses ephemeral containers via Docker CP.
+
+- **SE and QA have separate workspace directories** on the same volume (`/workspaces/<team>/se/` and `/workspaces/<team>/qa/`). Two clones of the same branch — avoids git lock conflicts, sync through GitHub.
+- **Test execution via Docker CP** — SE copies code into a fresh ephemeral container, runs standalone test command, reads results, container destroyed. Clean room per run, workspace untouched.
+- **Go binary is project-agnostic** — no target project toolchain. Project-specific tools live only in the test runner image provided by SRE.
+- **Docker socket required** — Go binary's container needs `/var/run/docker.sock` mounted.
+
+See TECH_RESEARCH.md for full details, architecture diagram, and alternatives considered.
+
 ---
 
 ## Agent Loops
