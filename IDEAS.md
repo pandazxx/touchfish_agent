@@ -3,7 +3,7 @@
 ## TODOs
 
 - [ ] Define contract formats for all agent interactions (see section 8 for full list: file contracts, issue templates, label conventions, commit message conventions)
-- [ ] Tech stack discussion and decisions
+- [x] Tech stack discussion and decisions (see TECH_RESEARCH.md)
 
 ## Project Vision
 

@@ -74,6 +74,43 @@ git2go is unmaintained — avoid. GitPython shells out to git CLI, defeating the
 
 ---
 
+## Language Comparison: Python vs Go
+
+**Decision: Go** — but Python remains a viable fallback if Go proves too slow for development.
+
+| Factor | Python | Go | Winner |
+|--------|--------|-----|--------|
+| Git library | Dulwich — pure, in-memory, but `pull()` quirky | go-git — pure, in-memory, fewer quirks | Go |
+| GitHub REST API | `requests` + mock libs | `net/http` + `httptest` (all stdlib) | Tie |
+| AI CLI subprocess | `subprocess` (stdlib) | `os/exec` (stdlib) | Tie |
+| Testing | pytest — fast to write, easy mocking | built-in `testing` + `httptest` — no external deps | Tie |
+| Minimal dependencies | Needs Python runtime + pip packages | Single static binary, zero runtime deps | **Go** |
+| Container image | Python base image (~100MB+) | Scratch/alpine + binary (~10-20MB) | **Go** |
+| Development speed | Fast to prototype, less boilerplate | More verbose, slower to write | **Python** |
+| AI generating our code | Most fluent, largest training corpus | Good but Python stronger | **Python** |
+| Type safety | Dynamic — bugs at runtime | Static — bugs at compile time | **Go** |
+| Error handling | Exceptions — easy to miss | Explicit — verbose but forces handling | **Go** |
+| Concurrency | asyncio/threading — workable but awkward | Goroutines — native, lightweight | **Go** |
+| Long-running daemon | GIL concerns, resource leak risks | Built for long-running services | **Go** |
+
+**Why Go:** This project is a long-running daemon managing state machines with future concurrent teams. Go's single binary deployment, goroutines, type safety, and go-git's maturity make it the stronger fit. The stdlib covers GitHub API and testing with zero external deps.
+
+**Why Python could win:** Faster to develop, AI writes better Python, lower barrier for solo/SOHO developer. If Go development proves too slow, switching to Python + Dulwich is viable since the wrapper layer abstracts git operations.
+
+---
+
+## Tech Stack Decision
+
+| Component | Choice | Notes |
+|-----------|--------|-------|
+| Language | **Go** | Single binary, stdlib covers most needs |
+| Git library | **go-git** | Pure Go, in-memory repos for testing |
+| GitHub | **REST API** (net/http) | Mock with httptest |
+| AI Agent | **CLI** (os/exec) | Black box, mock subprocess |
+| Testing | **Go built-in** (testing + httptest) | No external test deps |
+
+---
+
 ## Integration Decisions
 
 | Integration | Approach | Test Strategy |
