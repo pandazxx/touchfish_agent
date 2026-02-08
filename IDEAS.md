@@ -34,6 +34,19 @@ Three distinct roles, modeled after a real software team:
 - QA focuses on the higher-value thinking: what should be tested and why
 - Tests naturally align with implementation since the same agent writes both
 
+**Known risk: "grading your own homework."** Since SE writes both the implementation and the tests, there's a risk that:
+1. SE misinterprets QA's test requirements — tests don't cover what QA intended
+2. SE unconsciously writes tests biased toward their implementation — tests pass but verify the wrong thing
+
+**Mitigation: QA reviews SE's test code.** After SE implements test cases, QA reads the test code and compares it against original test requirements. If the tests don't match intent, QA files issues. This adds a review step to the cycle:
+```
+QA writes TEST_REQUIREMENTS.md
+    → SE implements tests
+        → QA reviews test code against original intent
+            → QA files issues if tests don't match intent
+```
+QA doesn't need to *write* code, but must be able to *read and critique* it. This is consistent with the strategist role — a test strategist reviews whether their strategy was executed correctly.
+
 ### 3. PM Agent is Out of Scope (Decided)
 
 The PM role is handled **outside this project** via a conversational chat UI (e.g., Claude web, ChatGPT). Brainstorming and requirements gathering are highly interactive and real-time — GitHub's async, commit-based workflow is not suited for this phase.
