@@ -158,7 +158,36 @@ No cross-team coordination. User is the only one who sees across teams.
 
 CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
 
-### 10. Container Architecture
+### 10. Tech Stack
+
+**Language: Go.** Python remains a viable fallback if Go proves too slow for development.
+
+| Component | Choice | Notes |
+|-----------|--------|-------|
+| Language | Go | Single binary, stdlib covers most needs |
+| Git | go-git (via wrapper layer) | Pure Go, in-memory repos for testing. Wrapper allows swapping to git CLI if needed. |
+| GitHub | REST API (net/http) | Easy to mock with httptest, AI generates code/mocks fluently |
+| AI Agent | CLI as black box (os/exec) | Mock subprocess in tests, verify invocation args |
+| Testing | Go built-in (testing + httptest) | No external test deps |
+
+**Why Go over Python:**
+- Single static binary — zero runtime deps, tiny container image (~10-20MB vs ~100MB+)
+- Goroutines — native concurrency for parallel team management
+- Type safety — compile-time checks for state machine logic
+- go-git is more mature than Dulwich with fewer quirks
+- Built for long-running daemons (no GIL, no resource leak risks)
+
+**Why Python could still win:**
+- Faster to develop, less boilerplate
+- AI writes better Python (larger training corpus)
+- Lower barrier for solo/SOHO developer
+- Switching is viable due to wrapper layer abstracting git operations
+
+**Test strategy drives the stack.** AI agent output is unpredictable, so the system is designed to isolate the AI as a black box. All testable logic (orchestrator, agent loops, priority rules, state transitions) is deterministic and tested without AI involvement.
+
+See TECH_RESEARCH.md for full comparison tables and library analysis.
+
+### 11. Container Architecture
 
 Single Go binary runs orchestrator, SE, and QA as goroutines. Test execution uses ephemeral containers via Docker CP.
 
