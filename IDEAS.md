@@ -27,7 +27,8 @@ Three distinct roles, modeled after a real software team:
 |------|-------|----------------|
 | **PM (Product Manager)** | 1 | Define features and requirements |
 | **SE (Software Engineer)** | n | Implementation (feature code + test code) |
-| **QA (Test Engineer)** | 1 or n | Test strategy, test requirements, CI/CD, review test results, raise issues |
+| **SRE (Site Reliability)** | 1 | Project setup, CI/CD, dev conventions |
+| **QA (Test Engineer)** | 1 or n | Test strategy, test requirements, review test results, raise issues |
 
 **Key distinction:** QA is a **test strategist**, not a test coder. QA defines *what* to test (scenarios, edge cases, acceptance criteria) via `TEST_REQUIREMENTS.md`. SE implements both the feature code and the test code. This means:
 - Only SE writes code — no merge conflicts between agents
@@ -47,16 +48,31 @@ QA writes TEST_REQUIREMENTS.md
 ```
 QA doesn't need to *write* code, but must be able to *read and critique* it. This is consistent with the strategist role — a test strategist reviews whether their strategy was executed correctly.
 
-### 3. PM Agent is Out of Scope (Decided)
+### 3. PM and SRE Agents are Out of Scope (Decided)
 
-The PM role is handled **outside this project** via a conversational chat UI (e.g., Claude web, ChatGPT). Brainstorming and requirements gathering are highly interactive and real-time — GitHub's async, commit-based workflow is not suited for this phase.
+Both PM and SRE roles are handled **outside this project** via conversational chat UI (e.g., Claude web, ChatGPT). These roles involve highly interactive, real-time discussions not suited for GitHub's async workflow.
 
-**Handoff contract:** The PM phase outputs a structured file (e.g., `REQUIREMENT.md`) committed to the branch. This project picks up from that point and handles `Requirements -> SE -> QA -> loop`.
+**PM** brainstorms with the user and outputs `REQUIREMENT.md` — defines *what* to build.
+**SRE** works with the user to set up the project and outputs `PROJECT_SETUP.md` — defines *how* to build and test. This includes:
+- Project structure conventions (where source goes, where tests go)
+- Test framework and how to run tests
+- Naming conventions CI expects (e.g., `test_*.py`, `*.test.ts`)
+- Quality gates (coverage thresholds, lint rules)
+- Build and deploy commands
+- Environment requirements
 
+SRE is a **bootstrap role** — active during project setup, then idle. Reactivated on demand if CI/CD or project conventions need changes.
+
+**Handoff contracts:**
 ```
-[Chat UI + User]  -->  REQUIREMENT.md  -->  [This Project]  -->  Code, Tests, PRs
-                       (the contract)
+[Out of scope]                    [Handoff contracts]           [This project]
+User + PM   → brainstorm  →  REQUIREMENT.md          ──┐
+                              (what to build)           ├──→  SE + QA workflow
+User + SRE  → setup       →  PROJECT_SETUP.md        ──┘
+                              (how to build & test)
 ```
+
+SE references both: *what* from PM, *how* from SRE. QA also references `PROJECT_SETUP.md` to understand quality gates when writing test requirements.
 
 ### 4. User as Arbiter (Decided)
 
@@ -130,8 +146,6 @@ The naming convention `agent/<agent_name>/*` needs refinement for multi-role age
 - How are multiple SE agents assigned to different tasks?
 - Who creates the branches — user or PM output?
 
-### O6. CI/CD Ownership
+### ~~O6. CI/CD Ownership~~ (Resolved)
 
-The README mentions "Agent or GitHub Action triggers CI/CD." With a dedicated QA role:
-- Is CI/CD setup and maintenance the QA agent's responsibility?
-- Does QA own the pipeline definition, or just consume its results?
+CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
