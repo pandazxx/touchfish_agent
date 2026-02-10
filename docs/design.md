@@ -358,182 +358,56 @@ QA only writes TEST_REQUIREMENTS.md. If push fails: pull and retry once. Not tim
 
 ## 8. Prompt Templates
 
-### 8.1 SE: Issue Fix
+Templates are stored as separate markdown files in `internal/ai/templates/`. Each template uses `{variable}` placeholders that the `ai` package renders at invocation time.
 
-**Context passed to AI:**
-- PROJECT_SETUP.md (full content)
-- Issue title, body, and all comments (full conversation thread)
-- Current branch name for context
+### 8.1 SE: Issue Fix — `se_issue_fix.md`
 
-```
-You are a software engineer working on this project.
+**Context variables:**
+| Variable | Source |
+|----------|--------|
+| `PROJECT_SETUP.md content` | Read from workspace |
+| `issue.number`, `issue.title`, `issue.body` | GitHubClient.GetIssue() |
+| `comment.author`, `comment.date`, `comment.body` | GitHubClient.ListIssueComments() |
 
-## Project conventions
-{PROJECT_SETUP.md content}
+### 8.2 SE: Requirement Implementation — `se_implementation.md`
 
-## Issue to fix
-#{issue.number}: {issue.title}
+**Context variables:**
+| Variable | Source |
+|----------|--------|
+| `PROJECT_SETUP.md content` | Read from workspace |
+| `REQUIREMENT.md content` | Read from workspace |
+| `TEST_REQUIREMENTS.md content` | Read from workspace (optional) |
+| `diff of REQUIREMENT.md` | GitClient.DiffFiles() + FileContent() |
+| `diff of TEST_REQUIREMENTS.md` | GitClient.DiffFiles() + FileContent() |
 
-{issue.body}
+### 8.3 SE: Test Fix — `se_test_fix.md`
 
-### Comments
-{for each comment:}
-**{comment.author}** ({comment.date}):
-{comment.body}
-{end for}
+**Context variables:**
+| Variable | Source |
+|----------|--------|
+| `test stdout` | TestRunner.Run() result |
+| `test stderr` | TestRunner.Run() result |
 
-## Instructions
-1. Read the relevant source code to understand the issue
-2. Implement a fix based on the issue description and the discussion in comments
-3. Update or add tests to cover this fix
-4. Make minimal, focused changes
+### 8.4 QA: Test Requirements Generation — `qa_test_requirements.md`
 
-Do NOT commit. Just modify the files.
-```
+**Context variables:**
+| Variable | Source |
+|----------|--------|
+| `REQUIREMENT.md content` | Read from workspace |
+| `PROJECT_SETUP.md content` | Read from workspace |
+| `diff of REQUIREMENT.md` | GitClient.DiffFiles() + FileContent() |
+| `existing content` (TEST_REQUIREMENTS.md) | Read from workspace (optional) |
 
-### 8.2 SE: Requirement Implementation
+### 8.5 QA: Code Review — `qa_review.md`
 
-**Context passed to AI:**
-- PROJECT_SETUP.md (full content)
-- REQUIREMENT.md (full content)
-- TEST_REQUIREMENTS.md (full content, if exists)
-- What changed: which file(s) changed, and the diff showing what was added/modified/removed
-
-```
-You are a software engineer working on this project.
-
-## Project conventions
-{PROJECT_SETUP.md content}
-
-## Full feature requirements
-{REQUIREMENT.md content}
-
-## Full test requirements
-{TEST_REQUIREMENTS.md content, or "No test requirements yet."}
-
-## What changed
-{if REQUIREMENT.md changed:}
-### REQUIREMENT.md changes
-```diff
-{diff of REQUIREMENT.md from last processed version to current}
-```
-{end if}
-
-{if TEST_REQUIREMENTS.md changed:}
-### TEST_REQUIREMENTS.md changes
-```diff
-{diff of TEST_REQUIREMENTS.md from last processed version to current}
-```
-{end if}
-
-## Instructions
-1. Read the existing code to understand current state
-2. Focus on implementing the CHANGES shown above — do not re-implement what already exists
-3. Write tests as specified in the test requirements
-4. Follow project conventions for file naming, test framework, etc.
-
-Do NOT commit. Just modify the files.
-```
-
-### 8.3 SE: Test Fix
-
-**Context passed to AI:**
-- Test output (stdout + stderr from test runner)
-
-```
-You are a software engineer. Your tests are failing.
-
-## Test output
-{test stdout}
-{test stderr}
-
-## Instructions
-1. Analyze the test failures
-2. Fix the code (implementation or tests) to make all tests pass
-3. Make minimal changes — only fix what's broken
-
-Do NOT commit. Just modify the files.
-```
-
-### 8.4 QA: Test Requirements Generation
-
-**Context passed to AI:**
-- REQUIREMENT.md (full content)
-- PROJECT_SETUP.md (full content)
-- Existing TEST_REQUIREMENTS.md (if exists)
-- Diff of REQUIREMENT.md showing what changed
-
-```
-You are a QA test strategist. Your job is to define WHAT to test, not HOW to code it.
-
-## Feature requirements
-{REQUIREMENT.md content}
-
-## What changed in requirements
-```diff
-{diff of REQUIREMENT.md from last processed version to current}
-```
-
-## Project conventions
-{PROJECT_SETUP.md content}
-
-{if TEST_REQUIREMENTS.md exists:}
-## Existing TEST_REQUIREMENTS.md
-{existing content}
-
-Update or extend based on the requirement changes. Preserve items that are still relevant. Remove items for deleted requirements.
-{else:}
-No existing TEST_REQUIREMENTS.md. Create from scratch.
-{end if}
-
-## Instructions
-Write TEST_REQUIREMENTS.md with:
-1. Test scenarios grouped by feature area
-2. For each scenario: description, input conditions, expected outcome, edge cases
-3. Priority (critical / high / medium / low)
-4. Do NOT write test code — only describe what should be tested
-
-Write directly to the file TEST_REQUIREMENTS.md.
-```
-
-### 8.5 QA: Code Review
-
-**Context passed to AI:**
-- TEST_REQUIREMENTS.md (full content)
-- REQUIREMENT.md (full content)
-- PROJECT_SETUP.md (full content)
-- List of changed files with change type
-
-```
-You are a QA test strategist reviewing code changes made by an SE agent.
-
-## Your test requirements
-{TEST_REQUIREMENTS.md content}
-
-## Feature requirements
-{REQUIREMENT.md content}
-
-## Project conventions
-{PROJECT_SETUP.md content}
-
-## Changed files since last review ({fromHash}..{toHash})
-{for each changed file:}
-- {file.path} ({Added|Modified|Deleted})
-{end for}
-
-## Instructions
-Review whether the SE's implementation and tests correctly fulfill the test requirements.
-
-For each finding, output a JSON object on its own line:
-{"type": "missing_test", "requirement": "...", "detail": "..."}
-{"type": "wrong_test", "requirement": "...", "detail": "..."}
-{"type": "missing_coverage", "feature": "...", "detail": "..."}
-
-If everything looks good:
-{"type": "approved", "detail": "All tests align with requirements."}
-
-Only output JSON lines. No other text.
-```
+**Context variables:**
+| Variable | Source |
+|----------|--------|
+| `TEST_REQUIREMENTS.md content` | Read from workspace |
+| `REQUIREMENT.md content` | Read from workspace |
+| `PROJECT_SETUP.md content` | Read from workspace |
+| `fromHash`, `toHash` | StateStore (lastReviewedCommit) + GitClient.HeadHash() |
+| `file.path`, change type | GitClient.DiffFiles() |
 
 ---
 
