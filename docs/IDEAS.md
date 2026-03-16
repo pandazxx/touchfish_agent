@@ -1,0 +1,262 @@
+# Ideas & Brainstorm Summary
+
+## TODOs
+
+- [ ] Define contract formats for all agent interactions (see section 8 for full list: file contracts, issue templates, label conventions, commit message conventions)
+- [x] Tech stack discussion and decisions (see TECH_RESEARCH.md)
+- [ ] State management and crash recovery — how to track session state, last processed commit, and recover after restart
+- [ ] Configuration — teams, GitHub credentials, AI CLI settings, test runner image
+- [ ] Observability / logging — how user monitors agent activity (logs, dashboard, PR comments)
+- [ ] Session lifecycle details — PR creation, session end, workspace cleanup
+- [ ] AI CLI prompt construction — how to build prompts for SE vs QA, what context gets passed
+- [ ] Security — GitHub tokens, Docker socket exposure, AI API keys
+- [ ] Cost management — AI API rate/cost limits, GitHub API rate limits
+- [ ] Recovery / resilience — Go binary crash mid-session handling
+
+## Project Vision
+
+An AI-powered virtual software team that uses GitHub as the control plane. Developers interact with AI agents through familiar GitHub primitives (branches, PRs, issues, commits) rather than a custom UI. Targets solo developers and tiny teams (2-3 members) running on home server / SOHO infrastructure.
+
+---
+
+## Decisions
+
+### 1. Polling over Event-driven
+
+The agent uses a **pull-based polling model**, not webhooks.
+
+**Rationale:** Home server / SOHO environment means no static IP, behind NAT, no reliable public endpoint. Webhooks would require tunneling (ngrok, Cloudflare Tunnel, etc.) which adds dependencies and fragility — contradicting the "minimal dependencies" principle. Polling is self-healing and infrastructure-independent.
+
+**Optimizations to consider:**
+- Tiered polling intervals (frequent during active hours, slow at night)
+- Lightweight checks (`git ls-remote`, GitHub API ETags) to minimize overhead
+- Status visibility (heartbeat / last-checked indicator) so user knows the agent is alive
+
+### 2. Agent Role Model
+
+Four distinct roles, modeled after a real software team:
+
+| Role | Count | Responsibility | In Scope |
+|------|-------|----------------|----------|
+| **PM (Product Manager)** | 1 | Define features and requirements | No |
+| **SRE (Site Reliability)** | 1 | Project setup, CI/CD, dev conventions | No |
+| **SE (Software Engineer)** | 1 per team | Implementation (feature code + test code) | Yes |
+| **QA (Test Engineer)** | 1 per team | Test strategy, test requirements, review test results, raise issues | Yes |
+
+**Key distinction:** QA is a **test strategist**, not a test coder. QA defines *what* to test (scenarios, edge cases, acceptance criteria) via `TEST_REQUIREMENTS.md`. SE implements both the feature code and the test code. This means:
+- Only SE writes code — no merge conflicts between agents
+- QA focuses on the higher-value thinking: what should be tested and why
+- Tests naturally align with implementation since the same agent writes both
+
+**Known risk: "grading your own homework."** Since SE writes both the implementation and the tests, there's a risk that:
+1. SE misinterprets QA's test requirements — tests don't cover what QA intended
+2. SE unconsciously writes tests biased toward their implementation — tests pass but verify the wrong thing
+
+**Mitigation: QA reviews SE's test code.** After SE implements test cases, QA reads the test code and compares it against original test requirements. If the tests don't match intent, QA files issues. This adds a review step to the cycle:
+```
+QA writes TEST_REQUIREMENTS.md
+    → SE implements tests
+        → QA reviews test code against original intent
+            → QA files issues if tests don't match intent
+```
+QA doesn't need to *write* code, but must be able to *read and critique* it. This is consistent with the strategist role — a test strategist reviews whether their strategy was executed correctly.
+
+### 3. PM and SRE are Out of Scope
+
+Both PM and SRE roles are handled **outside this project** via conversational chat UI (e.g., Claude web, ChatGPT). These roles involve highly interactive, real-time discussions not suited for GitHub's async workflow.
+
+**PM** brainstorms with the user and outputs `REQUIREMENT.md` — defines *what* to build.
+**SRE** works with the user to set up the project and outputs `PROJECT_SETUP.md` — defines *how* to build and test. This includes:
+- Project structure conventions (where source goes, where tests go)
+- Test framework and how to run tests
+- Naming conventions CI expects (e.g., `test_*.py`, `*.test.ts`)
+- Quality gates (coverage thresholds, lint rules)
+- Build and deploy commands
+- Environment requirements
+
+SRE is a **bootstrap role** — active during project setup, then idle. Reactivated on demand if CI/CD or project conventions need changes.
+
+**Handoff contracts:**
+```
+[Out of scope]                    [Handoff contracts]           [This project]
+User + PM   → brainstorm  →  REQUIREMENT.md          ──┐
+                              (what to build)           ├──→  SE + QA workflow
+User + SRE  → setup       →  PROJECT_SETUP.md        ──┘
+                              (how to build & test)
+```
+
+SE references both: *what* from PM, *how* from SRE. QA also references `PROJECT_SETUP.md` to understand quality gates when writing test requirements.
+
+### 4. User as Arbiter
+
+Agents do **not** resolve conflicts with each other. The user is the final judge. Agents are workers; the user is the manager.
+
+- SE agent: implements requirements, fixes issues labeled `Agent to fix`
+- QA agent: tests code, reports issues, but has no authority to block or revert
+- All conflict resolution flows through the user via GitHub (issue comments, labels, close/reopen)
+- No inter-agent communication protocol needed — agents interact with GitHub, user is the router
+
+### 5. SE and QA Work in Parallel
+
+SE and QA work in parallel with no sequencing gate between them.
+
+- QA reads `REQUIREMENT.md` and outputs `TEST_REQUIREMENTS.md` (test scenarios, edge cases, acceptance criteria)
+- SE starts implementing from `REQUIREMENT.md` immediately — does not wait for QA
+- When `TEST_REQUIREMENTS.md` lands (or is updated), SE picks it up as just another requirement change and implements the test cases
+
+**SE treats all requirement sources equally.** Whether a change comes from PM (`REQUIREMENT.md`) or QA (`TEST_REQUIREMENTS.md`), the SE agent's behavior is the same: detect the diff, implement it, commit.
+
+**Rationale:**
+- No idle time — SE starts immediately, no waiting for QA
+- Architecturally simple — no special sequencing or "wait for QA" state
+- Rework is cheap for AI agents — if QA's test specs require rethinking, it's handled in the normal cycle
+- Matches real-world dynamics where requirements arrive incrementally
+
+### 6. Validation
+
+Validation has two tracks:
+
+**Track 1: Test execution (SE responsibility, CI as safety net)**
+- SE runs tests locally before committing. Fix until pass, then commit clean code.
+- CI runs on every commit as a double-check (environment differences, integration issues).
+- **Escape hatch:** If SE fails to pass tests after N retries, SE commits what it has and files an issue describing the failure. User triages. This prevents silent infinite loops where SE is stuck and user has no visibility.
+
+**Alternative approaches considered (may revisit):**
+- *(Option C)* Always commit regardless, let CI catch failures, failures become issues. Simpler but noisy git history.
+- *(Option D)* SE commits failing code to a sub-branch (e.g., `agent/se-1/feature-x/wip`). User inspects without polluting main feature branch. Cleaner but adds branching complexity.
+
+**Track 2: Test code verification (QA responsibility)**
+- QA watches for **any** SE commit — not just test code changes.
+- On every change, QA reviews test code alignment against `TEST_REQUIREMENTS.md`:
+  - Do existing tests still match QA's intent?
+  - Are there new feature changes lacking corresponding tests?
+- QA files issues for misalignment.
+
+### 7. SE Priority Rules
+
+SE follows a fixed priority order — no special "user away" logic needed:
+
+1. **Issues labeled `Agent to fix`** (highest priority)
+2. **New requirement diffs** (`REQUIREMENT.md` or `TEST_REQUIREMENTS.md`)
+3. **Idle** — poll and wait (lowest)
+
+SE only truly idles when all requirements are implemented and no issues are assigned — which is the correct stopping point.
+
+### 8. Team-based Agent Organization
+
+Agents are organized into **teams**, not individual identities. Each team has exactly 1 SE + 1 QA. The team is the unit of work.
+
+**Branch convention:** `agent/<team_name>/<feature>`
+- Example: `agent/alpha/feature-auth`
+- Both SE and QA in team "alpha" watch for `agent/alpha/*` branches
+- No role encoded in the branch name — the branch represents the session/feature, not the agent
+
+**One branch at a time per team.** A team works on a single active branch. When the branch merges, the team scans for the next one.
+
+**User creates the branch** with `REQUIREMENT.md` committed. Agents detect it and start working.
+
+**Scaling:** Add more teams for parallel features. Each team is fully independent.
+```
+Team alpha → agent/alpha/feature-auth    → SE-alpha + QA-alpha
+Team beta  → agent/beta/feature-payments → SE-beta  + QA-beta
+```
+No cross-team coordination. User is the only one who sees across teams.
+
+### 9. CI/CD Ownership
+
+CI/CD is owned by the **SRE role** (out of scope). SRE sets up CI/CD as a bootstrap step before feature work begins. CI/CD is treated as shared infrastructure, not an ongoing agent responsibility. Changes to CI/CD go back through the user + SRE chat, same as PM requirement changes.
+
+### 10. Tech Stack
+
+**Language: Go.** Python remains a viable fallback if Go proves too slow for development.
+
+| Component | Choice | Notes |
+|-----------|--------|-------|
+| Language | Go | Single binary, stdlib covers most needs |
+| Git | go-git (via wrapper layer) | Pure Go, in-memory repos for testing. Wrapper allows swapping to git CLI if needed. |
+| GitHub | REST API (net/http) | Easy to mock with httptest, AI generates code/mocks fluently |
+| AI Agent | CLI as black box (os/exec) | Mock subprocess in tests, verify invocation args |
+| Testing | Go built-in (testing + httptest) | No external test deps |
+
+**Why Go over Python:**
+- Single static binary — zero runtime deps, tiny container image (~10-20MB vs ~100MB+)
+- Goroutines — native concurrency for parallel team management
+- Type safety — compile-time checks for state machine logic
+- go-git is more mature than Dulwich with fewer quirks
+- Built for long-running daemons (no GIL, no resource leak risks)
+
+**Why Python could still win:**
+- Faster to develop, less boilerplate
+- AI writes better Python (larger training corpus)
+- Lower barrier for solo/SOHO developer
+- Switching is viable due to wrapper layer abstracting git operations
+
+**Test strategy drives the stack.** AI agent output is unpredictable, so the system is designed to isolate the AI as a black box. All testable logic (orchestrator, agent loops, priority rules, state transitions) is deterministic and tested without AI involvement.
+
+See TECH_RESEARCH.md for full comparison tables and library analysis.
+
+### 11. Container Architecture
+
+Single Go binary runs orchestrator, SE, and QA as goroutines. Test execution uses ephemeral containers via Docker CP.
+
+- **SE and QA have separate workspace directories** on the same volume (`/workspaces/<team>/se/` and `/workspaces/<team>/qa/`). Two clones of the same branch — avoids git lock conflicts, sync through GitHub.
+- **Test execution via Docker CP** — SE copies code into a fresh ephemeral container, runs standalone test command, reads results, container destroyed. Clean room per run, workspace untouched.
+- **Go binary is project-agnostic** — no target project toolchain. Project-specific tools live only in the test runner image provided by SRE.
+- **Docker socket required** — Go binary's container needs `/var/run/docker.sock` mounted.
+
+See TECH_RESEARCH.md for full details, architecture diagram, and alternatives considered.
+
+---
+
+## Agent Loops
+
+```
+SE loop:                            QA loop:
+  pull changes                        pull changes
+  issues labeled "Agent to fix"?      diff from SE commits?
+    → fix issue                         → review test code alignment
+    → run tests locally                 → review CI results
+    → fix until pass (max N retries)    → file issues if needed
+    → commit (or file issue if stuck)   sleep
+  diff requirements?
+    → implement code + tests
+    → run tests locally
+    → fix until pass (max N retries)
+    → commit (or file issue if stuck)
+  sleep
+```
+
+---
+
+## Contract Catalog (Detail Design TODO)
+
+All agent interaction flows through contracts — markdown files and GitHub issues. The format and structure of each contract needs to be defined in detail design.
+
+**File-based contracts:**
+
+| Contract | Producer | Consumer(s) | Questions to resolve |
+|----------|----------|-------------|---------------------|
+| `REQUIREMENT.md` | PM (out of scope) | SE, QA | Freeform vs. structured template? Incremental updates — how does SE know what's new vs. already implemented? |
+| `TEST_REQUIREMENTS.md` | QA | SE | How granular — one scenario per line, or grouped by feature? How to link test requirements back to REQUIREMENT.md items? |
+| `PROJECT_SETUP.md` | SRE (out of scope) | SE, QA | What sections are mandatory? How prescriptive vs. flexible? |
+
+**Issue-based contracts:**
+
+| Contract | Producer | Consumer(s) | Questions to resolve |
+|----------|----------|-------------|---------------------|
+| Bug / defect issue | QA or User | SE | Issue template: what fields are required (repro steps, expected vs. actual, severity)? |
+| Test mismatch issue | QA | SE | How to reference the specific test requirement that was misimplemented? |
+| Implementation issue | SE | User | When SE is blocked or needs clarification, what's the format? |
+
+**Label conventions:**
+
+| Label | Meaning | Set by | Questions to resolve |
+|-------|---------|--------|---------------------|
+| `Agent to fix` | Issue ready for SE to pick up | User or QA | Priority levels needed? |
+| `Agent fixing` | SE is working on it | SE | Timeout if SE stalls? |
+| `Agent fixed to be verified` | SE done, awaiting verification | SE | Who verifies — QA, user, or both? |
+
+**Commit message conventions:**
+- Should commits reference issue numbers?
+- Should commits indicate which requirement item they address?
+- Format for SE commits vs. QA commits?
